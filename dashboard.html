@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CMO/CEO Marketing Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+--bg-primary:#0f172a;--bg-secondary:#1e293b;--bg-card:rgba(30,41,59,0.7);
+--border-card:rgba(148,163,184,0.12);--text-primary:#f1f5f9;--text-secondary:#94a3b8;
+--text-muted:#64748b;--blue:#3b82f6;--green:#10b981;--amber:#f59e0b;
+--red:#ef4444;--purple:#8b5cf6;--cyan:#06b6d4;
+}
+html{font-size:14px}
+body{font-family:'Inter',system-ui,sans-serif;background:var(--bg-primary);color:var(--text-primary);min-height:100vh;overflow-x:hidden}
+.dashboard{max-width:1600px;margin:0 auto;padding:1rem 1.5rem 3rem}
+
+/* Header */
+.header{display:flex;align-items:center;justify-content:space-between;padding:1.2rem 0;border-bottom:1px solid var(--border-card);margin-bottom:1.5rem;flex-wrap:wrap;gap:1rem}
+.header-left h1{font-size:1.6rem;font-weight:800;background:linear-gradient(135deg,var(--blue),var(--purple));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.header-left .subtitle{color:var(--text-secondary);font-size:.85rem;margin-top:.15rem}
+.drop-zone{border:2px dashed var(--text-muted);border-radius:12px;padding:.8rem 2rem;text-align:center;color:var(--text-muted);cursor:pointer;transition:all .25s;min-width:280px}
+.drop-zone:hover,.drop-zone.dragover{border-color:var(--blue);color:var(--blue);background:rgba(59,130,246,0.06)}
+.drop-zone svg{vertical-align:middle;margin-right:.4rem}
+.header-right{text-align:right;color:var(--text-secondary);font-size:.82rem}
+
+/* Toast */
+.toast{position:fixed;top:1.5rem;right:1.5rem;padding:.9rem 1.5rem;border-radius:10px;color:#fff;font-weight:500;z-index:9999;opacity:0;transform:translateY(-10px);transition:all .3s;pointer-events:none;font-size:.85rem}
+.toast.show{opacity:1;transform:translateY(0)}
+.toast.success{background:var(--green)}.toast.error{background:var(--red)}
+
+/* KPI Cards */
+.kpi-row{display:grid;grid-template-columns:repeat(5,1fr);gap:1rem;margin-bottom:1.5rem}
+.kpi-card{background:var(--bg-card);backdrop-filter:blur(16px);border:1px solid var(--border-card);border-radius:14px;padding:1.1rem 1.2rem;transition:transform .2s,box-shadow .2s}
+.kpi-card:hover{transform:translateY(-3px);box-shadow:0 8px 30px rgba(0,0,0,.25)}
+.kpi-label{font-size:.7rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);font-weight:600;margin-bottom:.5rem}
+.kpi-value{font-size:1.55rem;font-weight:800;margin-bottom:.15rem}
+.kpi-sub{font-size:.72rem;color:var(--text-secondary);margin-bottom:.6rem}
+.kpi-bar-track{height:6px;background:rgba(148,163,184,0.15);border-radius:3px;overflow:hidden}
+.kpi-bar-fill{height:100%;border-radius:3px;transition:width .6s}
+.kpi-att{font-size:.7rem;font-weight:600;margin-top:.35rem}
+
+/* Filter Bar */
+.filter-bar{display:flex;align-items:center;gap:1rem;padding:.8rem 1.2rem;background:var(--bg-card);backdrop-filter:blur(16px);border:1px solid var(--border-card);border-radius:12px;margin-bottom:1.5rem;flex-wrap:wrap}
+.filter-bar label{font-size:.72rem;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted);font-weight:600}
+.filter-bar select{background:var(--bg-secondary);color:var(--text-primary);border:1px solid var(--border-card);border-radius:8px;padding:.4rem .7rem;font-family:inherit;font-size:.8rem;outline:none}
+.filter-bar select:focus{border-color:var(--blue)}
+.cat-tabs{display:flex;gap:.4rem;margin-left:auto}
+.cat-tab{padding:.35rem .8rem;border-radius:8px;font-size:.75rem;font-weight:500;cursor:pointer;border:1px solid var(--border-card);color:var(--text-secondary);background:transparent;transition:all .2s}
+.cat-tab.active{background:var(--blue);color:#fff;border-color:var(--blue)}
+
+/* Charts Grid */
+.charts-grid{display:grid;grid-template-columns:1fr 1fr;gap:1.2rem;margin-bottom:1.5rem}
+.chart-card{background:var(--bg-card);backdrop-filter:blur(16px);border:1px solid var(--border-card);border-radius:14px;padding:1.2rem;transition:transform .2s,box-shadow .2s}
+.chart-card:hover{transform:translateY(-2px);box-shadow:0 6px 24px rgba(0,0,0,.2)}
+.chart-card.full{grid-column:1/-1}
+.chart-title{font-size:.88rem;font-weight:700;margin-bottom:.8rem;display:flex;align-items:center;gap:.5rem}
+.chart-title .badge{font-size:.6rem;padding:.15rem .5rem;border-radius:6px;font-weight:600}
+.chart-wrap{position:relative;height:280px}
+.chart-wrap.tall{height:320px}
+
+/* Benchmark Table */
+.bench-table{width:100%;border-collapse:collapse;font-size:.8rem}
+.bench-table th{text-align:left;padding:.6rem .8rem;color:var(--text-muted);font-weight:600;font-size:.7rem;text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid var(--border-card)}
+.bench-table td{padding:.6rem .8rem;border-bottom:1px solid rgba(148,163,184,0.06)}
+.bench-table tr:hover td{background:rgba(59,130,246,0.04)}
+.cell-good{color:var(--green);font-weight:600}
+.cell-ok{color:var(--amber);font-weight:600}
+.cell-bad{color:var(--red);font-weight:600}
+
+@media(max-width:1200px){.kpi-row{grid-template-columns:repeat(3,1fr)}.charts-grid{grid-template-columns:1fr}}
+@media(max-width:768px){.kpi-row{grid-template-columns:1fr 1fr}.header{flex-direction:column;text-align:center}}
+</style>
+</head>
+<body>
+<div class="dashboard">
+<!-- Header -->
+<div class="header">
+  <div class="header-left">
+    <h1>CMO/CEO Monthly Dashboard</h1>
+    <div class="subtitle">1WorldSync &mdash; FY 2025 Marketing Performance</div>
+  </div>
+  <div class="drop-zone" id="dropZone">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+    Drop updated .xlsx file here
+  </div>
+  <div class="header-right" id="headerDate"></div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<!-- KPI Row -->
+<div class="kpi-row" id="kpiRow"></div>
+
+<!-- Filter Bar -->
+<div class="filter-bar">
+  <label>From</label>
+  <select id="filterFrom"></select>
+  <label>To</label>
+  <select id="filterTo"></select>
+  <label>View</label>
+  <select id="filterView"><option value="monthly">Monthly</option><option value="cumulative">Cumulative</option></select>
+  <div class="cat-tabs" id="catTabs"></div>
+</div>
+
+<!-- Charts -->
+<div class="charts-grid" id="chartsGrid">
+  <div class="chart-card" data-cat="ARR" id="sec-arr">
+    <div class="chart-title">Influenced ARR <span class="badge" style="background:var(--blue)">Monthly</span></div>
+    <div class="chart-wrap"><canvas id="chartARR"></canvas></div>
+  </div>
+  <div class="chart-card" data-cat="Pipeline" id="sec-pipe">
+    <div class="chart-title">Pipeline Generated <span class="badge" style="background:var(--purple)">Monthly</span></div>
+    <div class="chart-wrap"><canvas id="chartPipe"></canvas></div>
+  </div>
+  <div class="chart-card" data-cat="Leads" id="sec-leads">
+    <div class="chart-title">Leads <span class="badge" style="background:var(--green)">Monthly</span></div>
+    <div class="chart-wrap"><canvas id="chartLeads"></canvas></div>
+  </div>
+  <div class="chart-card" data-cat="BDR" id="sec-bdr">
+    <div class="chart-title">BDR Performance <span class="badge" style="background:var(--amber)">Meetings & Opps</span></div>
+    <div class="chart-wrap"><canvas id="chartBDR"></canvas></div>
+  </div>
+  <div class="chart-card" data-cat="Connections" id="sec-conn">
+    <div class="chart-title">Connections <span class="badge" style="background:var(--cyan)">Monthly + Cumulative</span></div>
+    <div class="chart-wrap"><canvas id="chartConn"></canvas></div>
+  </div>
+  <div class="chart-card" data-cat="Pipeline" id="sec-mktgpipe">
+    <div class="chart-title">Marketing-Attributed Pipeline <span class="badge" style="background:var(--purple)">Quarterly</span></div>
+    <div class="chart-wrap tall"><canvas id="chartMktgPipe"></canvas></div>
+  </div>
+  <div class="chart-card full" data-cat="Investment" id="sec-invest">
+    <div class="chart-title">Marketing Investment Trend <span class="badge" style="background:var(--green)">Quarterly</span></div>
+    <div class="chart-wrap"><canvas id="chartInvest"></canvas></div>
+  </div>
+  <div class="chart-card full" data-cat="Benchmark" id="sec-bench">
+    <div class="chart-title">Quarterly Benchmarks</div>
+    <div id="benchTable"></div>
+  </div>
+</div>
+</div>
+
+<script>
+// ============ DEFAULT DATA ============
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const Q_LABELS_PIPE = ['Q1-21','Q2-21','Q3-21','Q4-21','Q1-22','Q2-22','Q3-22','Q4-22','Q1-23','Q2-23','Q3-23','Q4-23','Q1-24','Q2-24','Q3-24','Q4-24','Q1-25'];
+const Q_LABELS_BOOK = ['Q1-21','Q2-21','Q3-21','Q4-21','Q1-22','Q2-22','Q3-22','Q4-22','Q1-23','Q2-23','Q3-23','Q4-23','Q1-24','Q2-24','Q3-24','Q4-24'];
+const Q_LABELS_INV = ['Q1-22','Q2-22','Q3-22','Q4-22','Q1-23','Q2-23','Q3-23','Q4-23','Q1-24','Q2-24','Q3-24','Q4-24','Q1-25','Q2-25','Q3-25'];
+
+let DATA = {
+  arr: {
+    target: 142000, fyTarget: 1704000,
+    actuals: [143041,156055,144193,149682,158826,142112,141844,248325,53577,0,0,0],
+    attainment: [101,110,102,105,112,100,100,175,38,0,0,0],
+    cumTarget: [142000,284000,426000,568000,710000,852000,994000,1136000,1278000,1420000,1562000,1704000],
+    cumActuals: [143041,299096,443289,592971,751797,893909,1035753,1284078,1337655,0,0,0]
+  },
+  pipeline: {
+    target: 4500000,
+    actuals: [3657839,3037640,3413186,3665822,2580251,2965581,2485704,3414924,504136,0,0,0],
+    attainment: [81,68,76,81,57,66,55,76,11,0,0,0]
+  },
+  leads: {
+    priorYearAvg: 687,
+    actuals: [758,691,783,731,643,1050,768,714,248,0,0,0],
+    attainment: [91,101,114,106,94,153,112,104,36,0,0,0]
+  },
+  bdr: {
+    meetings: {target:92, actuals:[79,78,101,69,83,59,64,49,15,0,0,0]},
+    opps: {target:46, actuals:[59,39,58,46,50,35,39,36,7,0,0,0]},
+    pipeCreated: {target:500000, actuals:[562567,267960,600558,189950,252794,166179,203476,272317,20822,0,0,0]},
+    bookings: {target:125000, actuals:[103863,146402,120627,164496,128173,71441,45787,51860,8506,0,0,0]}
+  },
+  connections: {
+    target: 291,
+    actuals: [258,214,316,315,297,301,349,301,63,0,0,0],
+    cumTarget: [291,582,873,1164,1455,1746,2037,2328,2619,2910,3201,3492],
+    cumActuals: [258,472,788,1103,1400,1701,2050,2351,2414,0,0,0]
+  },
+  corpPipe: {
+    total: [1897169,1828616,2144029,4114678,4014001,4549491,5645664,3433428,4116693,7012341,5478264,4031438,4401665,8533316,6791728,7645353,9491315],
+    marketing: [706623,404884,563665,1092401,1735297,1743053,1474897,954778,1898780,3897513,2644886,1504085,1289078,3622944,4442361,5736480,6294729],
+    sales: [1190547,1423732,1580365,3022277,2278704,2806438,4170766,2478650,2217914,3114828,2833378,2527353,3112587,4910372,2349367,1908873,3196586],
+    mktgPct: [37,22,26,27,43,38,26,28,46,56,48,37,29,42,65,75,66]
+  },
+  corpBook: {
+    total: [2912750,2683972,2924783,1572219,2540663,2122730,2528543,2246367,1924471,2132092,2355219,2237922,4346528,4110438,3343437,4813641],
+    marketing: [38902,329155,538952,630322,885593,1025933,1101217,1035943,1006259,919817,1078209,780323,2042868,1908476,2093131,3043201],
+    mktgPct: [1,12,18,40,35,48,44,46,52,43,46,35,47,46,63,63]
+  },
+  investment: {
+    fullyLoaded: [234539,417233,330900,369947,340497,427429,505173,529075,504601,493900,493900,493900,604721,604721,604721],
+    programsOnly: [89713,246334,146668,168490,153337,219226,293109,279354,254880,244179,244179,244179,355000,355000,355000,355000]
+  },
+  benchmarks: [
+    {metric:'Marketing Spend vs. New + Expansion ARR',high:'25%',median:'41%',ows:'28%'},
+    {metric:'Marketing Spend vs S&M Spend',high:'39%',median:'N/A',ows:'16%'},
+    {metric:'New & Expansion ARR per Marketing FTE',high:'$1,290,000',median:'$816,000',ows:'$1,400,000'}
+  ]
+};
+
+// ============ UTILITIES ============
+const fmt$ = v => '$' + Math.round(v).toLocaleString();
+const fmtK = v => {const a=Math.abs(v); if(a>=1e6) return '$'+(v/1e6).toFixed(1)+'M'; if(a>=1e3) return '$'+(v/1e3).toFixed(0)+'K'; return '$'+v;};
+const fmtN = v => Math.round(v).toLocaleString();
+const sum = (a,f,t) => a.slice(f,t+1).reduce((s,v)=>s+v,0);
+const pct = (a,b) => b?Math.round(a/b*100):0;
+const attColor = p => p>=100?'var(--green)':p>=80?'var(--amber)':'var(--red)';
+const barColors = att => att.map(a=>a>=100?'rgba(16,185,129,.75)':a>=80?'rgba(245,158,11,.75)':'rgba(239,68,68,.75)');
+const barColorsFromVals = (actuals,targets) => actuals.map((v,i)=>{const t=Array.isArray(targets)?targets[i]:targets;const p=t?Math.round(v/t*100):0;return p>=100?'rgba(16,185,129,.75)':p>=80?'rgba(245,158,11,.75)':'rgba(239,68,68,.75)';});
+
+function showToast(msg,type='success'){
+  const t=document.getElementById('toast');t.textContent=msg;t.className='toast '+type+' show';
+  setTimeout(()=>t.classList.remove('show'),3000);
+}
+
+// ============ HEADER DATE ============
+document.getElementById('headerDate').innerHTML = new Date().toLocaleDateString('en-US',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+
+// ============ FILTERS ============
+let filterFrom=0, filterTo=8, filterView='monthly', filterCat='All';
+const CATS = ['All','ARR','Pipeline','Leads','BDR','Connections','Investment','Benchmark'];
+
+function initFilters(){
+  const sf=document.getElementById('filterFrom'), st=document.getElementById('filterTo');
+  sf.innerHTML='';st.innerHTML='';
+  MONTHS.forEach((m,i)=>{sf.add(new Option(m,i));st.add(new Option(m,i))});
+  sf.value=filterFrom;st.value=filterTo;
+  sf.onchange=()=>{filterFrom=+sf.value;render()};
+  st.onchange=()=>{filterTo=+st.value;render()};
+  document.getElementById('filterView').onchange=e=>{filterView=e.target.value;render()};
+  const ct=document.getElementById('catTabs');ct.innerHTML='';
+  CATS.forEach(c=>{const b=document.createElement('button');b.className='cat-tab'+(c===filterCat?' active':'');b.textContent=c;b.onclick=()=>{filterCat=c;document.querySelectorAll('.cat-tab').forEach(x=>x.classList.remove('active'));b.classList.add('active');render()};ct.appendChild(b)});
+}
+
+function getLabels(){return MONTHS.slice(filterFrom,filterTo+1)}
+function sl(a){return a.slice(filterFrom,filterTo+1)}
+
+// ============ KPI CARDS ============
+function renderKPIs(){
+  const d=DATA, f=filterFrom, t=filterTo, n=t-f+1;
+  const arrAct=sum(d.arr.actuals,f,t), arrTgt=d.arr.target*n, arrAtt=pct(arrAct,arrTgt);
+  const pipAct=sum(d.pipeline.actuals,f,t), pipTgt=d.pipeline.target*n, pipAtt=pct(pipAct,pipTgt);
+  const ldAct=sum(d.leads.actuals,f,t), ldTgt=d.leads.priorYearAvg*n, ldAtt=pct(ldAct,ldTgt);
+  const bkAct=sum(d.bdr.bookings.actuals,f,t), bkTgt=d.bdr.bookings.target*n, bkAtt=pct(bkAct,bkTgt);
+  const cnAct=sum(d.connections.actuals,f,t), cnTgt=d.connections.target*n, cnAtt=pct(cnAct,cnTgt);
+  const cards=[
+    {label:'YTD Influenced ARR',value:fmt$(arrAct),sub:`Target: ${fmt$(arrTgt)}`,att:arrAtt},
+    {label:'YTD Pipeline Generated',value:fmt$(pipAct),sub:`Target: ${fmt$(pipTgt)}`,att:pipAtt},
+    {label:'YTD Leads',value:fmtN(ldAct),sub:`Prior Yr Avg: ${fmtN(ldTgt)}`,att:ldAtt},
+    {label:'YTD BDR Bookings',value:fmt$(bkAct),sub:`Target: ${fmt$(bkTgt)}`,att:bkAtt},
+    {label:'YTD Connections',value:fmtN(cnAct),sub:`Target: ${fmtN(cnTgt)}`,att:cnAtt}
+  ];
+  document.getElementById('kpiRow').innerHTML=cards.map(c=>{
+    const col=attColor(c.att);
+    const arrow=c.att>=100?'&#9650;':'&#9660;';
+    return `<div class="kpi-card">
+      <div class="kpi-label">${c.label}</div>
+      <div class="kpi-value" style="color:${col}">${c.value}</div>
+      <div class="kpi-sub">${c.sub}</div>
+      <div class="kpi-bar-track"><div class="kpi-bar-fill" style="width:${Math.min(c.att,100)}%;background:${col}"></div></div>
+      <div class="kpi-att" style="color:${col}">${arrow} ${c.att}% Attainment</div>
+    </div>`;
+  }).join('');
+}
+
+// ============ CHART INSTANCES ============
+let charts={};
+Chart.defaults.color='#94a3b8';
+Chart.defaults.borderColor='rgba(148,163,184,0.08)';
+Chart.defaults.font.family='Inter';
+Chart.register(ChartDataLabels);
+
+function destroyCharts(){Object.values(charts).forEach(c=>{if(c&&c.destroy)c.destroy()});charts={}}
+
+function makeChart(id,cfg){
+  const canvas=document.getElementById(id);
+  if(!canvas)return null;
+  const ctx=canvas.getContext('2d');
+  return new Chart(ctx,cfg);
+}
+
+function baseCfg(type,labels,datasets,opts={}){
+  return {
+    type,data:{labels,datasets},
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:opts.legend!==undefined?opts.legend:true,labels:{boxWidth:12,padding:8,font:{size:11}}},
+        datalabels:{display:opts.datalabels||false,color:'#e2e8f0',font:{size:9,weight:600},anchor:'end',align:'top',
+          formatter:opts.dlFmt||(v=>v)}},
+      scales:{
+        x:{grid:{display:false},ticks:{font:{size:10}}},
+        y:{beginAtZero:true,ticks:{font:{size:10},callback:opts.yFmt||(v=>v)},
+          ...(opts.yMax?{max:opts.yMax}:{})}
+      },
+      ...(opts.extra||{})
+    }
+  };
+}
+
+// ============ RENDER CHARTS ============
+function renderCharts(){
+  destroyCharts();
+  const d=DATA, lbl=getLabels(), isCum=filterView==='cumulative';
+
+  // Visibility
+  document.querySelectorAll('.chart-card[data-cat]').forEach(el=>{
+    const c=el.dataset.cat;
+    el.style.display=(filterCat==='All'||filterCat===c)?'':'none';
+  });
+
+  // 1. ARR
+  if(filterCat==='All'||filterCat==='ARR'){
+    const vals=isCum?sl(d.arr.cumActuals):sl(d.arr.actuals);
+    const tgt=isCum?sl(d.arr.cumTarget):sl(d.arr.actuals).map(()=>d.arr.target);
+    document.querySelector('#sec-arr .badge').textContent=isCum?'Cumulative':'Monthly';
+    charts.arr=makeChart('chartARR',{
+      type:'bar',data:{labels:lbl,datasets:[
+        {label:'Actual',data:vals,backgroundColor:barColorsFromVals(vals,tgt),borderRadius:4,barPercentage:.6},
+        {label:'Target',data:tgt,type:'line',borderColor:'rgba(245,158,11,.8)',borderWidth:2,borderDash:[6,3],pointRadius:0,fill:false}
+      ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{boxWidth:12,padding:8,font:{size:11}}},datalabels:{display:false}},
+        scales:{x:{grid:{display:false},ticks:{font:{size:10}}},y:{beginAtZero:true,ticks:{font:{size:10},callback:v=>fmtK(v)}}}}
+    });
+  }
+
+  // 2. Pipeline
+  if(filterCat==='All'||filterCat==='Pipeline'){
+    const vals=sl(d.pipeline.actuals);
+    charts.pipe=makeChart('chartPipe',{
+      type:'bar',data:{labels:lbl,datasets:[
+        {label:'Actual',data:vals,backgroundColor:barColorsFromVals(vals,d.pipeline.target),borderRadius:4,barPercentage:.6},
+        {label:'Target',data:vals.map(()=>d.pipeline.target),type:'line',borderColor:'rgba(245,158,11,.8)',borderWidth:2,borderDash:[6,3],pointRadius:0,fill:false}
+      ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{boxWidth:12,padding:8,font:{size:11}}},datalabels:{display:false}},
+        scales:{x:{grid:{display:false},ticks:{font:{size:10}}},y:{beginAtZero:true,ticks:{font:{size:10},callback:v=>fmtK(v)}}}}
+    });
+  }
+
+  // 3. Leads
+  if(filterCat==='All'||filterCat==='Leads'){
+    const vals=sl(d.leads.actuals);
+    charts.leads=makeChart('chartLeads',{
+      type:'bar',data:{labels:lbl,datasets:[
+        {label:'Actual',data:vals,backgroundColor:barColorsFromVals(vals,d.leads.priorYearAvg),borderRadius:4,barPercentage:.6},
+        {label:'Prior Yr Avg',data:vals.map(()=>d.leads.priorYearAvg),type:'line',borderColor:'rgba(139,92,246,.8)',borderWidth:2,borderDash:[6,3],pointRadius:0,fill:false}
+      ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{boxWidth:12,padding:8,font:{size:11}}},datalabels:{display:false}},
+        scales:{x:{grid:{display:false},ticks:{font:{size:10}}},y:{beginAtZero:true,ticks:{font:{size:10}}}}}
+    });
+  }
+
+  // 4. BDR
+  if(filterCat==='All'||filterCat==='BDR'){
+    const mAct=sl(d.bdr.meetings.actuals), oAct=sl(d.bdr.opps.actuals);
+    charts.bdr=makeChart('chartBDR',{
+      type:'bar',data:{labels:lbl,datasets:[
+        {label:'Meetings Actual',data:mAct,backgroundColor:barColorsFromVals(mAct,d.bdr.meetings.target),borderRadius:4,barPercentage:.4,categoryPercentage:.7},
+        {label:'Meetings Target',data:mAct.map(()=>d.bdr.meetings.target),type:'line',borderColor:'rgba(148,163,184,.5)',borderWidth:2,borderDash:[4,3],pointRadius:0,fill:false},
+        {label:'Opps Actual',data:oAct,backgroundColor:barColorsFromVals(oAct,d.bdr.opps.target),borderRadius:4,barPercentage:.4,categoryPercentage:.7},
+        {label:'Opps Target',data:oAct.map(()=>d.bdr.opps.target),type:'line',borderColor:'rgba(148,163,184,.35)',borderWidth:2,borderDash:[4,3],pointRadius:0,fill:false}
+      ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{boxWidth:12,padding:8,font:{size:11}}},datalabels:{display:false}},
+        scales:{x:{grid:{display:false},ticks:{font:{size:10}}},y:{beginAtZero:true,ticks:{font:{size:10}}}}}
+    });
+  }
+
+  // 5. Connections
+  if(filterCat==='All'||filterCat==='Connections'){
+    const vals=isCum?sl(d.connections.cumActuals):sl(d.connections.actuals);
+    const tgt=isCum?sl(d.connections.cumTarget):sl(d.connections.actuals).map(()=>d.connections.target);
+    charts.conn=makeChart('chartConn',{
+      type:'bar',data:{labels:lbl,datasets:[
+        {label:'Actual',data:vals,backgroundColor:barColorsFromVals(vals,tgt),borderRadius:4,barPercentage:.6},
+        {label:'Target',data:tgt,type:'line',borderColor:'rgba(245,158,11,.8)',borderWidth:2,borderDash:[6,3],pointRadius:0,fill:false}
+      ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{boxWidth:12,padding:8,font:{size:11}}},datalabels:{display:false}},
+        scales:{x:{grid:{display:false},ticks:{font:{size:10}}},y:{beginAtZero:true,ticks:{font:{size:10},callback:v=>fmtN(v)}}}}
+    });
+  }
+
+  // 6. Marketing-Attributed Pipeline (quarterly)
+  if(filterCat==='All'||filterCat==='Pipeline'){
+    charts.mktgPipe=makeChart('chartMktgPipe',{
+      type:'bar',data:{labels:Q_LABELS_PIPE,datasets:[
+        {label:'Marketing',data:d.corpPipe.marketing,backgroundColor:'rgba(59,130,246,.65)',borderRadius:3},
+        {label:'Sales',data:d.corpPipe.sales,backgroundColor:'rgba(148,163,184,.35)',borderRadius:3}
+      ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{boxWidth:12,padding:8,font:{size:11}}},
+        datalabels:{display:true,color:'#e2e8f0',font:{size:8,weight:600},anchor:'end',align:'top',formatter:v=>v>500000?fmtK(v):''}},
+        scales:{x:{stacked:true,grid:{display:false},ticks:{font:{size:9}}},y:{stacked:true,beginAtZero:true,ticks:{font:{size:10},callback:v=>fmtK(v)}}}}
+    });
+  }
+
+  // 7. Investment
+  if(filterCat==='All'||filterCat==='Investment'){
+    charts.invest=makeChart('chartInvest',{
+      type:'line',data:{labels:Q_LABELS_INV,datasets:[
+        {label:'Fully Loaded',data:d.investment.fullyLoaded,borderColor:'var(--blue)',backgroundColor:'rgba(59,130,246,.1)',fill:true,tension:.3,pointRadius:3},
+        {label:'Programs Only',data:d.investment.programsOnly,borderColor:'var(--green)',backgroundColor:'rgba(16,185,129,.1)',fill:true,tension:.3,pointRadius:3}
+      ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{boxWidth:12,padding:8,font:{size:11}}},datalabels:{display:false}},
+        scales:{x:{grid:{display:false},ticks:{font:{size:9}}},y:{beginAtZero:true,ticks:{font:{size:10},callback:v=>fmtK(v)}}}}
+    });
+  }
+
+  // 8. Benchmarks
+  if(filterCat==='All'||filterCat==='Benchmark'){
+    let html='<table class="bench-table"><thead><tr><th>Metric</th><th>High Performers</th><th>Median</th><th>1WorldSync (Q1 2025)</th></tr></thead><tbody>';
+    d.benchmarks.forEach(r=>{
+      // Conditional formatting for 1WS column
+      let cls='cell-good';
+      if(r.metric.includes('Spend vs. New')){
+        const v=parseFloat(r.ows);cls=v<=25?'cell-good':v<=41?'cell-ok':'cell-bad';
+      } else if(r.metric.includes('S&M')){
+        const v=parseFloat(r.ows);cls=v<=39?'cell-good':'cell-ok';
+      } else if(r.metric.includes('FTE')){
+        const v=parseFloat(r.ows.replace(/[$,]/g,''));cls=v>=1290000?'cell-good':v>=816000?'cell-ok':'cell-bad';
+      }
+      html+=`<tr><td>${r.metric}</td><td>${r.high}</td><td>${r.median}</td><td class="${cls}">${r.ows}</td></tr>`;
+    });
+    html+='</tbody></table>';
+    document.getElementById('benchTable').innerHTML=html;
+  }
+}
+
+// ============ MAIN RENDER ============
+function render(){renderKPIs();renderCharts()}
+
+// ============ DRAG AND DROP ============
+const dz=document.getElementById('dropZone');
+dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('dragover')});
+dz.addEventListener('dragleave',()=>dz.classList.remove('dragover'));
+dz.addEventListener('drop',e=>{
+  e.preventDefault();dz.classList.remove('dragover');
+  const file=e.dataTransfer.files[0];
+  if(!file||!file.name.endsWith('.xlsx')){showToast('Please drop a valid .xlsx file','error');return}
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    try{parseWorkbook(ev.target.result);showToast('Dashboard updated with new data!')}
+    catch(err){console.error(err);showToast('Error parsing file: '+err.message,'error')}
+  };
+  reader.readAsArrayBuffer(file);
+});
+dz.addEventListener('click',()=>{
+  const inp=document.createElement('input');inp.type='file';inp.accept='.xlsx';
+  inp.onchange=e=>{
+    const file=e.target.files[0];if(!file)return;
+    const reader=new FileReader();
+    reader.onload=ev=>{
+      try{parseWorkbook(ev.target.result);showToast('Dashboard updated with new data!')}
+      catch(err){console.error(err);showToast('Error parsing file: '+err.message,'error')}
+    };
+    reader.readAsArrayBuffer(file);
+  };
+  inp.click();
+});
+
+// ============ EXCEL PARSER ============
+function parseNum(v){
+  if(v==null) return 0;
+  if(typeof v==='number') return v;
+  // strip $, commas, %, spaces, and handle parenthetical negatives
+  let s=String(v).replace(/[\s$,%]/g,'');
+  if(s.startsWith('(')&&s.endsWith(')')) s='-'+s.slice(1,-1);
+  const n=parseFloat(s);
+  return isNaN(n)?0:n;
+}
+function getRow(ws,r,maxC=12){
+  const out=[];
+  for(let c=1;c<=maxC;c++){
+    const addr=XLSX.utils.encode_cell({r:r-1,c});
+    const cell=ws[addr];
+    out.push(cell?parseNum(cell.v):0);
+  }
+  return out;
+}
+// Read a row of percentage values — Excel stores 101% as 1.01, but formatted text may say "101%"
+function getAttRow(ws,r,maxC=12){
+  const out=[];
+  for(let c=1;c<=maxC;c++){
+    const addr=XLSX.utils.encode_cell({r:r-1,c});
+    const cell=ws[addr];
+    if(!cell){out.push(0);continue;}
+    let v=parseNum(cell.v);
+    // If raw value is a decimal <=2 (like 1.01 for 101%), scale to integer %
+    if(typeof cell.v==='number'&&Math.abs(cell.v)<=2&&cell.v!==0) v=Math.round(cell.v*100);
+    out.push(v);
+  }
+  return out;
+}
+
+function findSheet(wb,names){
+  for(const n of names){
+    const s=wb.Sheets[n];if(s)return s;
+    // fuzzy
+    const found=wb.SheetNames.find(sn=>sn.toLowerCase().includes(n.toLowerCase()));
+    if(found)return wb.Sheets[found];
+  }
+  return null;
+}
+
+function parseWorkbook(buf){
+  const wb=XLSX.read(buf,{type:'array'});
+
+  // Influenced ARR
+  let ws=findSheet(wb,['Influenced ARR']);
+  if(ws){
+    DATA.arr.actuals=getRow(ws,3);
+    DATA.arr.attainment=getAttRow(ws,4);
+    const tgtRow=getRow(ws,2);if(tgtRow[0])DATA.arr.target=tgtRow[0];
+    DATA.arr.cumTarget=getRow(ws,8);
+    DATA.arr.cumActuals=getRow(ws,9);
+  }
+
+  // Pipeline
+  ws=findSheet(wb,['Pipeline']);
+  if(ws){
+    DATA.pipeline.actuals=getRow(ws,3);
+    DATA.pipeline.attainment=getAttRow(ws,4);
+    const tgtRow=getRow(ws,2);if(tgtRow[0])DATA.pipeline.target=tgtRow[0];
+  }
+
+  // Leads
+  ws=findSheet(wb,['Leads']);
+  if(ws){
+    DATA.leads.actuals=getRow(ws,3);
+    DATA.leads.attainment=getAttRow(ws,4);
+    const tgtRow=getRow(ws,2);if(tgtRow[0])DATA.leads.priorYearAvg=tgtRow[0];
+  }
+
+  // BDR
+  ws=findSheet(wb,['BDR Data','BDR']);
+  if(ws){
+    DATA.bdr.meetings.actuals=getRow(ws,3);
+    const mt=getRow(ws,2);if(mt[0])DATA.bdr.meetings.target=mt[0];
+    DATA.bdr.opps.actuals=getRow(ws,9);
+    const ot=getRow(ws,8);if(ot[0])DATA.bdr.opps.target=ot[0];
+    DATA.bdr.pipeCreated.actuals=getRow(ws,15);
+    const pt=getRow(ws,14);if(pt[0])DATA.bdr.pipeCreated.target=pt[0];
+    DATA.bdr.bookings.actuals=getRow(ws,20);
+    const bt=getRow(ws,19);if(bt[0])DATA.bdr.bookings.target=bt[0];
+  }
+
+  // Connections
+  ws=findSheet(wb,['Connections Data','Connections']);
+  if(ws){
+    DATA.connections.actuals=getRow(ws,7);
+    const ct=getRow(ws,6);if(ct[0])DATA.connections.target=ct[0];
+    DATA.connections.cumTarget=getRow(ws,14);
+    DATA.connections.cumActuals=getRow(ws,15);
+  }
+
+  // CORP Pipe & Bookings
+  ws=findSheet(wb,['CORP Pipe & Bookings w PWR','CORP Pipe & Bookings']);
+  if(ws){
+    const maxQ=20;
+    DATA.corpPipe.total=getRow(ws,2,maxQ);
+    DATA.corpPipe.marketing=getRow(ws,3,maxQ);
+    DATA.corpPipe.sales=getRow(ws,4,maxQ);
+    DATA.corpPipe.mktgPct=getRow(ws,5,maxQ);
+    DATA.corpBook.total=getRow(ws,14,maxQ);
+    DATA.corpBook.marketing=getRow(ws,15,maxQ);
+    DATA.corpBook.mktgPct=getRow(ws,17,maxQ);
+    DATA.investment.fullyLoaded=getRow(ws,28,maxQ);
+    DATA.investment.programsOnly=getRow(ws,29,maxQ);
+  }
+
+  // Benchmarks
+  ws=findSheet(wb,['Quarterly Performance Benchmark','Benchmark']);
+  if(ws){
+    DATA.benchmarks=[];
+    for(let r=2;r<=4;r++){
+      const mCell=ws[XLSX.utils.encode_cell({r:r-1,c:0})];
+      const hCell=ws[XLSX.utils.encode_cell({r:r-1,c:1})];
+      const medCell=ws[XLSX.utils.encode_cell({r:r-1,c:2})];
+      const owsCell=ws[XLSX.utils.encode_cell({r:r-1,c:4})];
+      if(mCell) DATA.benchmarks.push({
+        metric:mCell.v||'',
+        high:hCell?String(hCell.v):'',
+        median:medCell?String(medCell.v):'',
+        ows:owsCell?String(owsCell.v):''
+      });
+    }
+  }
+
+  render();
+}
+
+// ============ INIT ============
+initFilters();
+render();
+</script>
+</body>
+</html>
